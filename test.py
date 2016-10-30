@@ -1,0 +1,4 @@
+import tests
+
+tests.VAE_core_validation
+tests.VAE_core_toy_example
