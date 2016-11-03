@@ -14,28 +14,32 @@ from chainer.training import extensions
 class VAE_core(Chain):
     """Pyoko Pyoko Implementation of Variational Auto-Encoder"""
 
-    def __init__(self, encoder=encoder,decoder=decoder):
-        super(VAE_core, self).__init__(encoder=encoder.Encoder(), decoder=decoder.Decoder())
+    def __init__(self, encoder=encoder.Encoder(),decoder=decoder.Decoder(),Gauss=True):
+        super(VAE_core, self).__init__(encoder=encoder, decoder=decoder)
+        self.Gauss =Gauss
 
     def __call__(self, x,l):
         mu,sigma = self.encoder(x)
         self.KL=F.gaussian_kl_divergence(mu,sigma)
-        self.loss = Variable(np.array(0,dtype=np.float32))
+        self.loss = 0
         for i in range(l):
             sample=F.gaussian(mu,sigma)
-            m,s=self.decoder(sample)
-            self.loss += F.gaussian_nll(x,m,s)
-        self.loss =self.loss/l + self.KL
-        self.loss = self.loss/len(x)
+            if self.Gauss==True:
+                m,s=self.decoder(sample)
+                self.loss += F.gaussian_nll(x,m,s)
+            else:
+                p = self.decoder(sample)
+                self.loss += F.bernoulli_nll(x, p)
+        self.loss =self.loss + self.KL
+        self.loss = self.loss/(l*len(x))
         return self.loss
 
 
 class VAE:
     """User Interface for VAE"""
 
-    def __init__(self,encoder=encoder,decoder=decoder,sampling=100):
-
-        self.model = VAE_core(encoder,decoder)
+    def __init__(self,encoder=encoder,decoder=decoder,sampling=100,gauss=True):
+        self.model = VAE_core(encoder,decoder, Gauss=gauss)
         self.optimizer = optimizers.Adam()
         self.optimizer.setup(self.model)
         self.errors=[]
@@ -54,19 +58,19 @@ class VAE:
 
     def generate_z(self,input_data):
         x = Variable(np.array([np.float32(j) for j in input_data], dtype=np.float32))
-        tmp = self.model.encoder(x)
+        tmp = self.model.encoder.reconstruct(x)
         self.model.cleargrads()
-        return tmp
+        return tmp.data
 
     #def sampling(self,num=1):
 
 
     def reconstruction(self,input_data):
         x = Variable(np.array([np.float32(j) for j in input_data], dtype=np.float32))
-        tmp=self.model.encoder(x)[1] #Sigma
-        tmp =self.model.decoder(tmp)
+        tmp = self.model.encoder.reconstruct(x) #Sigma
+        tmp = self.model.decoder.reconstruct(tmp)
         self.model.cleargrads()
-        return tmp
+        return tmp.data
 
     def save_files(self, directory, update=False):
         if os.path.exists(directory) and update==False:

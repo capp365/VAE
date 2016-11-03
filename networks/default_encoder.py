@@ -14,7 +14,11 @@ class Encoder(Chain):
         )
 
     def __call__(self, x):
-        h1 = F.relu(self.enc_l1(x))
+        h1 = F.tanh(self.enc_l1(x))
         mu = self.enc_l2(h1)
         sigma = self.enc_l3(h1)
         return mu, sigma
+
+
+    def reconstruct(self, z):
+        return self(z)[1]
