@@ -12,10 +12,13 @@ class Decoder(Chain):
             dec_l2=L.Linear(dim_h, dim_x),
         )
 
-    def __call__(self, z):
+    def __call__(self, z,sigmoid=False):
         h1 = F.tanh(self.dec_l1(z))
-        p = F.sigmoid(self.dec_l2(h1))
+        if sigmoid:
+            p = F.sigmoid(self.dec_l2(h1))
+        else:
+            p = self.dec_l2(h1)
         return p
 
     def reconstruct(self,z):
-        return self(z)
+        return self(z,True)

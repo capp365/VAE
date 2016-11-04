@@ -20,4 +20,4 @@ class Decoder(Chain):
         return mu, sigma
 
     def reconstruct(self,z):
-        return self(z)[1]
+        return self(z)[0]

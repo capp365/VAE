@@ -14,26 +14,28 @@ from chainer.training import extensions
 class VAE_core(Chain):
     """Pyoko Pyoko Implementation of Variational Auto-Encoder"""
 
-    def __init__(self, encoder=encoder.Encoder(),decoder=decoder.Decoder(),Gauss=True):
+    def __init__(self, encoder=encoder.Encoder(),decoder=decoder.Decoder(),Gauss=False):
         super(VAE_core, self).__init__(encoder=encoder, decoder=decoder)
         self.Gauss =Gauss
 
-    def __call__(self, x,l):
-        mu,sigma = self.encoder(x)
-        self.KL=F.gaussian_kl_divergence(mu,sigma)
-        self.loss = 0
-        for i in range(l):
-            sample=F.gaussian(mu,sigma)
-            if self.Gauss==True:
-                m,s=self.decoder(sample)
-                self.loss += F.gaussian_nll(x,m,s)
-            else:
-                p = self.decoder(sample)
-                self.loss += F.bernoulli_nll(x, p)
-        self.loss =self.loss + self.KL
-        self.loss = self.loss/(l*len(x))
-        return self.loss
-
+    def __call__(self, l=1):
+        def lf(x):
+            mu,sigma = self.encoder(x)
+            #self.KL=
+            self.loss = 0
+            for i in range(l):
+                sample=F.gaussian(mu,sigma)
+                if self.Gauss==True:
+                    m,s=self.decoder(sample)
+                    self.loss += F.gaussian_nll(x,m,s)
+                else:
+                    p = self.decoder(sample)
+                    self.loss += F.bernoulli_nll(x, p)/(l*len(x.data))
+            self.KL=F.gaussian_kl_divergence(mu,sigma)/len(x.data)
+            self.loss += self.KL
+            #self.loss = self.loss
+            return self.loss
+        return lf
 
 class VAE:
     """User Interface for VAE"""
@@ -43,24 +45,26 @@ class VAE:
         self.optimizer = optimizers.Adam()
         self.optimizer.setup(self.model)
         self.errors=[]
+        self.kls=[]
         self.sampling = sampling
 
     def fit(self,input_data,iter=1):
         for i in range(iter):
             x = Variable(np.array([np.float32(j) for j in input_data], dtype=np.float32))
-            self.optimizer.update(self.model, x, self.sampling)
-            self.errors.append(self.model(x, self.sampling).data)
-            self.model.cleargrads()
-            if np.isnan(self.errors[-1]):
-                return False
-            else:
-                return True
+            self.optimizer.update(self.model(), x)
+            self.errors.append(self.model()(x).data)
+            #self.kls.append(self.model.KL.data)
+            #self.model.cleargrads()
+            #if np.isnan(self.errors[-1]):
+            #    return False
+            #else:
+            #    return True
 
     def generate_z(self,input_data):
         x = Variable(np.array([np.float32(j) for j in input_data], dtype=np.float32))
-        tmp = self.model.encoder.reconstruct(x)
+        tmp = self.model.encoder.reconstruct(x).data
         self.model.cleargrads()
-        return tmp.data
+        return tmp
 
     #def sampling(self,num=1):
 
@@ -68,9 +72,9 @@ class VAE:
     def reconstruction(self,input_data):
         x = Variable(np.array([np.float32(j) for j in input_data], dtype=np.float32))
         tmp = self.model.encoder.reconstruct(x) #Sigma
-        tmp = self.model.decoder.reconstruct(tmp)
+        tmp = self.model.decoder.reconstruct(tmp).data
         self.model.cleargrads()
-        return tmp.data
+        return tmp
 
     def save_files(self, directory, update=False):
         if os.path.exists(directory) and update==False:
